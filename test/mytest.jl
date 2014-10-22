@@ -1,23 +1,48 @@
 using ExtremeStats
 using Images
-NpY=46
-nlon=200
-nlat=200
-NY=7
+
+NpY=10
+nlon=20
+nlat=20
+NY=1
 x=ExtremeStats.random_x(nlon,nlat,NY)
 inan=rand(1:(nlon*nlat*NY),div(nlon*nlat*NY,20))
 x[inan]=NaN
-
+area=ones(Float32,nlat)
 
 @time anomar=get_anomalies(x,NpY,nlon,nlat)
 @time tres=nanquantile(x,0.95)
-x2=x.>tres
+x2=BitArray(nlon+1,nlat,NY*NpY)
+x2[1:nlon,:,:]=x.>tres
+#Now attach first slice to the end (circular globe)
+x2[nlon+1,:,:]=x2[1,:,:]
+
 @time lx=label_components(x2,trues(3,3,3))
-minimum(lx)
+#Take the last slice and compare it to the first
+renames=Dict{Int,Int}()
+for k=1:nlat, t=1:(NY*NpY)
+  if (lx[nlon+1,k,t]>0) && (!haskey(renames,lx[nlon+1,k,t]))
+    renames[lx[nlon+1,k,t]]=lx[1,k,t]
+  end
+end
+i=nlon+1;sren=1;
+while sren>0
+  sren=0;
+  for k=1:nlat, l=1:(NY*NpY)
+    if haskey(renames,lx[i,k,l])
+      lx[i,k,l]=renames[lx[i,k,l]]
+      sren=sren+1;
+    end
+  end
+  i=i-1;
+  println("$i $sren")
+end
+length(renames)
 nEx=maximum(lx)
-nFeat=4
 numCells=countNumCell(lx,nEx)
-@time extremeList=[Extreme(i,Array(Int,3,numCells[i]),Array(Float64,nFeat)) for i=1:nEx]
+sum(numCells.==0)
+inds=findnz(numCells)
+@time extremeList=[Extreme(i,Array(Int,3,numCells[i])) for i=1:nEx]
 
 function indices2List(larr,extremeList)
   curind=ones(length(larr))

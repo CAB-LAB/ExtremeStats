@@ -107,11 +107,9 @@ function smooth_circular!(xin::Vector,xout::Vector,wl::Integer=9)
     end
 end
 
-function anomalies(series::SubArray,msc,stdmsc,smsc,sstdmsc,series_anomaly)
+function anomalies(series::SubArray,msc,stdmsc,smsc,sstdmsc,series_anomaly;NpY::Int=46,filt=9)
   # length of time series
   N    = length(series)
-  NpY  = 46
-  filt = 9
   @assert mod(N,NpY)==0
   # devide length of time series by samples/year -> nr years
   NY=ifloor(N/NpY)
@@ -139,7 +137,7 @@ smsc    = Array(Float64,NpY) #Allocate once
 sstdmsc = Array(Float64,NpY) #Allocate once
 anomar=similar(x)
 for lon in 1:nlon, lat in 1:nlat
-    anomalies(sub(x,lon,lat,:),msc,stdmsc,smsc,sstdmsc,sub(anomar,lon,lat,:))
+    anomalies(sub(x,lon,lat,:),msc,stdmsc,smsc,sstdmsc,sub(anomar,lon,lat,:),NpY=NpY)
     #println("$lon $lat")
 end
   return(anomar)
@@ -148,7 +146,6 @@ end
 type Extreme
   index::Int64
   locs::Array{Int,2}
-  features::Array{Float64,1}
 end
 
 function countNumCell(labelList,nEx)
