@@ -1,32 +1,34 @@
 module ExtremeStats
-export nanquantile, anomalies, get_anomalies, Extreme, countNumCell
-using NetCDF
+export anomalies, get_anomalies, Extreme, load_X, label_Extremes, ExtremeList
+import Images.label_components
+import NetCDF.ncread
+include("Features.jl")
 
-function load_X()
-evapofrac_path="/Volumes/BGI/people/uweber/_data/2MM/EvapoFrac_FLuxcom/Data"
-years     = 2007:2012
-N_years   = length(years)
-lat_range = [45, 55]
-lon_range = [0, 20]
-NpY=46
-y=years[1]
-lons=ncread(joinpath(evapofrac_path,"EvapoFrac.$(years[1]).nc"),"lon")
-lats=ncread(joinpath(evapofrac_path,"EvapoFrac.$(years[1]).nc"),"lat")
-lonstep=lons[2]-lons[1]
-latstep=lats[2]-lats[1]
-cmplon=lonstep>0 ? .> : .<
-cmplat=latstep>0 ? .> : .<
-ilon_range=sort!([findfirst(cmplon(lons,lon_range[1])),findfirst(cmplon(lons,lon_range[2]-lonstep))])
-ilat_range=sort!([findfirst(cmplat(lats,lat_range[1])),findfirst(cmplat(lats,lat_range[2]-latstep))])
-nlon=ilon_range[2]-ilon_range[1]
-nlat=ilat_range[2]-ilat_range[1]
-x=Array(Float32,nlon,nlat,N_years*46)
-iyear=1
-for iyear in 1:N_years
-    println("$iyear")
-    x[:,:,((iyear-1)*NpY+1):iyear*NpY]=ncread(joinpath(evapofrac_path,"EvapoFrac.$(years[iyear]).nc"),"EvapoFrac",[ilon_range[1],ilat_range[1],1],[nlon,nlat,-1]);
-end
-  return(x)
+function load_X(evapofrac_path,years,lat_range,lon_range)
+
+  N_years   = length(years)
+  y=years[1]
+  lons=ncread(joinpath(evapofrac_path,"EvapoFrac.$(years[1]).nc"),"lon")
+  lats=ncread(joinpath(evapofrac_path,"EvapoFrac.$(years[1]).nc"),"lat")
+  time=ncread(joinpath(evapofrac_path,"EvapoFrac.$(years[1]).nc"),"time")
+  NpY=length(time)
+  lonstep=lons[2]-lons[1]
+  latstep=lats[2]-lats[1]
+  cmplon=lonstep>0 ? .> : .<
+  cmplat=latstep>0 ? .> : .<
+  ilon_range=sort!([findfirst(cmplon(lons,lon_range[1])),findfirst(cmplon(lons,lon_range[2]-lonstep))])
+  ilat_range=sort!([findfirst(cmplat(lats,lat_range[1])),findfirst(cmplat(lats,lat_range[2]-latstep))])
+  nlon=ilon_range[2]-ilon_range[1]
+  nlat=ilat_range[2]-ilat_range[1]
+  lons=lons[ilon_range[1]:ilon_range[2]];
+  lats=lats[ilat_range[1]:ilat_range[2]];
+  x=Array(Float32,nlon,nlat,N_years*46)
+  iyear=1
+  for iyear in 1:N_years
+      println("$iyear")
+      x[:,:,((iyear-1)*NpY+1):iyear*NpY]=ncread(joinpath(evapofrac_path,"EvapoFrac.$(years[iyear]).nc"),"EvapoFrac",[ilon_range[1],ilat_range[1],1],[nlon,nlat,-1]);
+  end
+  return(x,lons,lats,nlon,nlat,NpY,N_years)
 end
 
 random_x(nlon=200,nlat=200,N_years=7)=rand(Float32,nlon,nlat,N_years*46);
@@ -130,6 +132,30 @@ i=iround((length(xtest)-nNaN)*q)
 select(xtest[:],i)
 end
 
+function label_Extremes{T}(x::Array{T,3},quantile::Number;circular::Bool=false,pattern::BitArray=trues(3,3,3))
+  nlon=size(x,1)
+  #First calculate threshold
+  cmpfun = (quantile < 0.5) ? .< : .>
+  tres = nanquantile(x,quantile)
+  #Then allocate bitArray that hold the true/falses
+  offs = circular ? 1 : 0
+  x2=BitArray(size(x,1)+offs,size(x,2),size(x,3))
+  #Fill BitArray
+  x2[1:nlon,:,:]=cmpfun(x,tres)
+  if circular
+    #Now attach first slice to the end (circular globe)
+    x2[nlon+1,:,:]=x2[1,:,:];
+  end
+  #Do the labelling
+  lx=label_components(x2,pattern);
+  x2=0;gc();
+  circular && renameLabels(lx,x);
+  el=ExtremeList(x,lx);
+  return(el)
+end
+
+
+
 function get_anomalies(x,NpY,nlon,nlat)
 msc    = Array(Float64,NpY) #Allocate once
 stdmsc = Array(Float64,NpY) #Allocate once
@@ -143,14 +169,50 @@ end
   return(anomar)
 end
 
-type Extreme
+
+function indices2List(larr,xarr,extremeList)
+    curind=ones(Int,length(extremeList))
+    for i=1:size(xarr,3), j=1:size(xarr,2), k=1:size(xarr,1)
+        if larr[k,j,i]>0
+            extremeList[larr[k,j,i]].locs[curind[larr[k,j,i]],1]=k
+            extremeList[larr[k,j,i]].locs[curind[larr[k,j,i]],2]=j
+            extremeList[larr[k,j,i]].locs[curind[larr[k,j,i]],3]=i
+            extremeList[larr[k,j,i]].zvalues[curind[larr[k,j,i]]]=xarr[k,j,i]
+            curind[larr[k,j,i]]=curind[larr[k,j,i]]+1
+    end
+  end
+    return(curind)
+end
+
+type Extreme{T}
   index::Int64
   locs::Array{Int,2}
+  zvalues::Array{T,1}
+end
+
+
+
+type ExtremeList{T}
+  extremes::Array{Extreme{T}}
+  features::Dict{Symbol, Array{Float32,1}}
+end
+
+typealias FeatureVector{T} Vector{T}
+function ExtremeList(x,lx)
+  nEx=maximum(lx)
+  numCells=countNumCell(lx,nEx)
+  nempty=sum(numCells.==0);
+  extremeList=[Extreme(i,zeros(Int,numCells[i],3),Array(eltype(x),numCells[i])) for i=1:nEx];
+  indices2List(lx,x,extremeList);
+  o=sortperm(numCells,rev=true)
+  extremeList=extremeList[o];
+  deleteat!(extremeList,(nEx-nempty+1):nEx);
+  return(ExtremeList(extremeList,Dict{Symbol, FeatureVector{eltype(x)}}()))
 end
 
 function countNumCell(labelList,nEx)
   lAr=zeros(Int,nEx)
-  for i=1:nEx
+  for i=1:length(labelList)
     j=labelList[i]
     if j>0
       lAr[j]=lAr[j]+1
@@ -158,4 +220,36 @@ function countNumCell(labelList,nEx)
   end
   return lAr
 end
+
+function renameLabels(lx,x)
+  #Check if we have to relabel, if longitudes are padded
+  nlon=size(x,1)
+  nlat=size(x,2)
+  ntime=size(x,3)
+  size(lx,1)==size(x,1) && return(lx)
+  size(lx,1)==(nlon+1) || error("Something is wrong with the lon dimensions")
+  size(lx,2)==nlat || error("Something is wrong with the lat dimensions")
+  size(lx,3)==ntime || error("Something is wrong with the time dimensions")
+  renames=Dict{Int,Int}()
+  for k=1:nlat, t=1:ntime
+    if (lx[nlon+1,k,t]>0) && (!haskey(renames,lx[nlon+1,k,t]))
+      renames[lx[nlon+1,k,t]]=lx[1,k,t]
+    end
+  end
+  i=nlon+1;sren=1;
+  while sren>0 && i>0
+    sren=0;
+    for k=1:nlat, l=1:(ntime)
+      if haskey(renames,lx[i,k,l])
+        lx[i,k,l]=renames[lx[i,k,l]]
+        sren=sren+1;
+      end
+    end
+    i=i-1;
+  end
+  lx[nlon+1,:,:]=0
+end
+
+
 end # module
+

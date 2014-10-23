@@ -1,5 +1,6 @@
 using ExtremeStats
 using Images
+using PyPlot
 
 NpY=10
 nlon=20
@@ -9,6 +10,8 @@ x=ExtremeStats.random_x(nlon,nlat,NY)
 inan=rand(1:(nlon*nlat*NY),div(nlon*nlat*NY,20))
 x[inan]=NaN
 area=ones(Float32,nlat)
+
+
 
 @time anomar=get_anomalies(x,NpY,nlon,nlat)
 @time tres=nanquantile(x,0.95)
@@ -42,7 +45,7 @@ nEx=maximum(lx)
 numCells=countNumCell(lx,nEx)
 sum(numCells.==0)
 inds=findnz(numCells)
-@time extremeList=[Extreme(i,Array(Int,3,numCells[i])) for i=1:nEx]
+@time extremeList=[Extreme(i,Array(Int,3,numCells[i]),Array(eltype(x),numCells[i])) for i=1:nEx]
 
 function indices2List(larr,extremeList)
   curind=ones(length(larr))
