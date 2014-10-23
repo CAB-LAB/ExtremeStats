@@ -40,14 +40,14 @@ function calcFeatureFunction(features::Type...)
     for a in accus
         push!(loopbody.args,accu(a))
     end
-    push!(functionbody.args,Expr(:for,[:(1=1:n),loopbody]))
+    push!(functionbody.args,Expr(:for,:(i=1:n),loopbody))
     # Add returned values
-    ret=Expr(:tuple,Any[])
+    ret=Expr(:tuple)
     for f in features
         push!(ret.args,final(f))
     end
     push!(functionbody.args,Expr(:return,ret))
-    return(Expr(:function,Any[:((e::Extreme,)),functionbody])
+    return(Expr(:function,:(getFeatures(e::Extreme,)),functionbody))
 end
 
 
