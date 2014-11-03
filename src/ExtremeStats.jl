@@ -1,5 +1,5 @@
 module ExtremeStats
-export anomalies, get_anomalies, Extreme, load_X, label_Extremes, ExtremeList
+export anomalies, get_anomalies, Extreme, load_X, label_Extremes, ExtremeList, Features, getFeatures
 import Images.label_components
 import NetCDF.ncread
 include("Features.jl")
@@ -192,13 +192,16 @@ end
 
 
 
-type ExtremeList{T}
+type ExtremeList{T,U,V}
   extremes::Array{Extreme{T}}
-  features::Dict{Symbol, Array{Float32,1}}
+  area::Vector{U}
+  lons::Vector{V}
+  lats::Vector{V}
+  features::Dict{Symbol, Vector{T}}
 end
 
 typealias FeatureVector{T} Vector{T}
-function ExtremeList(x,lx)
+function ExtremeList(x,lx,area=ones(Float32,size(x,2)),lons=linspace(0,360,size(x,1)),lats=linspace(90,-90,size(x,2)))
   nEx=maximum(lx)
   numCells=countNumCell(lx,nEx)
   nempty=sum(numCells.==0);
@@ -207,7 +210,7 @@ function ExtremeList(x,lx)
   o=sortperm(numCells,rev=true)
   extremeList=extremeList[o];
   deleteat!(extremeList,(nEx-nempty+1):nEx);
-  return(ExtremeList(extremeList,Dict{Symbol, FeatureVector{eltype(x)}}()))
+  return(ExtremeList(extremeList,area,lons,lats,Dict{Symbol, FeatureVector{eltype(x)}}()))
 end
 
 function countNumCell(labelList,nEx)
@@ -250,6 +253,21 @@ function renameLabels(lx,x)
   lx[nlon+1,:,:]=0
 end
 
+function defineFeatures(features...)
+  length(Features.chosenFeatures)>0 && error("You have already defined your features. Please reload the module")
+  myf=ExtremeStats.Features.calcFeatureFunction(features...)
+  eval(myf)
+end
+
+function getFeatures(el::ExtremeList)
+
+  retar=Array(eltype(el.extremes[1].zvalues),length(el.extremes),length(Features.chosenFeatures))
+  for i=1:length(el.extremes)
+    ret=getFeatures(el.extremes[i],el.area,el.lons,el.lats)
+    for j=1:length(ret) retar[i,j]=ret[j] end
+  end
+  return retar
+end
 
 end # module
 
