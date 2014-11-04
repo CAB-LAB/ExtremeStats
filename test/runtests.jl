@@ -5,7 +5,9 @@ using Base.Test
 # Two subsequent years with 1st year sin(t) and 2nd year 2*sin(t)
 t=linspace(0,2*pi,46)
 testx=[sin(t),2*sin(t)]
-msc,stdmsc=getSeasStat(testx,2,46)
+msc=Array(Float64,46)
+stdmsc=Array(Float64,46)
+getSeasStat(testx,2,46,msc,stdmsc)
 # msc should be 1.5*si(t)
 @test all(msc.==1.5*sin(t))
 # std of msc should be 0.5 sin(t)
@@ -32,3 +34,4 @@ el2=label_Extremes(a,0.95,circular=true)
 @test length(el1.extremes)==1
 @test length(el1.extremes[1].zvalues)==16
 @test all(el1.extremes[1].zvalues.==100.0)
+
