@@ -1,4 +1,4 @@
-module Features
+﻿module Features
 const chosenFeatures=Array(DataType,0)
 #Define Accumulator behaviors
 abstract Accumulator
@@ -13,19 +13,19 @@ accu(::Type{Min_z_acc})= :(if z[i]<min_z_acc min_z_acc=z[i] end)
 type Sum_z_acc <: Accumulator end
 init(::Type{Sum_z_acc})= :(sum_z_acc=zero(eltype(z)))
 accu(::Type{Sum_z_acc})= :(sum_z_acc=sum_z_acc+area[x[i,2]]*z[i])
-type Max_t_acc <: Accumulator end
-init(::Type{Max_t_acc})= :(max_t_acc=typemin(eltype(x)))
-accu(::Type{Max_t_acc})= :(if x[i,3]>max_t_acc max_t_acc=x[i,3] end)
-type Min_t_acc <: Accumulator end
-init(::Type{Min_t_acc})= :(min_t_acc=typemax(eltype(x)))
-accu(::Type{Min_t_acc})= :(if x[i,3]<min_t_acc min_t_acc=x[i,3] end)
 type Size_acc <: Accumulator end
 init(::Type{Size_acc})= :(size_acc=zero(eltype(area)))
 accu(::Type{Size_acc})= :(size_acc=size_acc+area[x[i,2]])
 type Weight_acc <: Accumulator end
 init(::Type{Weight_acc})= :(weight_acc=zero(eltype(area)))
 accu(::Type{Weight_acc})= :(weight_acc=weight_acc+area[x[i,2]])
-
+#Time series accumulators are not preallocated and so the performance bottleneck at the moment....
+type Z_TS_acc <: Accumulator end
+init(::Type{Z_TS_acc})= :(z_ts_acc=zeros(eltype(z),max_t-min_t+1))
+accu(::Type{Z_TS_acc})= :(z_ts_acc[x[i,3]-min_t+1]=z_ts_acc[x[i,3]-min_t+1]+z[i]*area[x[i,2]])
+type AR_TS_acc <: Accumulator end
+init(::Type{AR_TS_acc})= :(ar_ts_acc=zeros(eltype(area),max_t-min_t+1))
+accu(::Type{AR_TS_acc})= :(ar_ts_acc[x[i,3]-min_t+1]=ar_ts_acc[x[i,3]-min_t+1]+area[x[i,2]])
 
 
 type Mean end
@@ -41,9 +41,9 @@ accumulators(::Type{Min_z})=(Min_z_acc,)
 final(::Type{Min_z})= :(min_z_acc)
 rettype(::Type{Min_z},e)=eltype(e.extremes[1].zvalues)
 type Duration end
-accumulators(::Type{Duration})=(Min_t_acc,Max_t_acc)
-final(::Type{Duration})= :(max_t_acc-min_t_acc)
-rettype(::Type{Duration},e)=eltype(e.extremes[1].locs)
+accumulators(::Type{Duration})=()
+final(::Type{Duration})= :(max_t-min_t)
+rettype(::Type{Duration},e)=Int
 type Size end
 accumulators(::Type{Size})=(Size_acc,)
 final(::Type{Size})= :(size_acc)
@@ -52,6 +52,22 @@ type NumPixel end
 accumulators(::Type{NumPixel})=()
 final(::Type{NumPixel})= :(length(z))
 rettype(::Type{NumPixel},e)=Int
+type TS_Area end
+accumulators(::Type{TS_Area})=(AR_TS_acc,)
+final(::Type{TS_Area})= :(ar_ts_acc)
+rettype(::Type{TS_Area},e)=Vector{eltype(e.area)}
+type TS_ZValue end
+accumulators(::Type{TS_ZValue})=(AR_TS_acc,Z_TS_acc)
+final(::Type{TS_ZValue})= quote
+  begin
+    for i_ts_z=1:length(ar_ts_acc)
+      z_ts_acc[i_ts_z]=z_ts_acc[i_ts_z]/ar_ts_acc[i_ts_z]
+    end
+    z_ts_acc
+  end
+end
+rettype(::Type{TS_ZValue},e)=Vector{eltype(e.extremes[1].zvalues)}
+
 
 #Now the fun begins! quantile calculations!
 #We use preallocated arrays to be fast and choose one of the according size
@@ -94,6 +110,7 @@ function calcFeatureFunction(features::DataType...)
         x=e.locs
         z=e.zvalues
         n=length(z)
+        (min_t,max_t)=e.tbounds
     end
     # Add initialization of each accumulator
     for a in accus

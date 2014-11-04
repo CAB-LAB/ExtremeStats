@@ -1,6 +1,6 @@
 module ExtremeStats
 include("Features.jl")
-export anomalies, get_anomalies, Extreme, load_X, label_Extremes, ExtremeList, Features, getFeatures, getSeasStat
+export anomalies, get_anomalies, Extreme, load_X, label_Extremes, ExtremeList, Features, getFeatures, getSeasStat, getTbounds
 import Images.label_components
 import NetCDF.ncread
 
@@ -188,6 +188,7 @@ type Extreme{T}
   index::Int64
   locs::Array{Int,2}
   zvalues::Array{T,1}
+  tbounds::(Int,Int)
 end
 
 
@@ -200,12 +201,24 @@ type ExtremeList{T,U,V}
   features::Dict{Symbol, Vector{T}}
 end
 
+function getTbounds(el::ExtremeList)
+  for e in el.extremes
+    tmin=typemax(Int)
+    tmax=0
+    for i=1:length(e.zvalues)
+      if e.locs[i,3]<tmin tmin=e.locs[i,3] end
+      if e.locs[i,3]>tmax tmax=e.locs[i,3] end
+    end
+    e.tbounds=(tmin,tmax)
+  end
+end
+
 typealias FeatureVector{T} Vector{T}
 function ExtremeList(x,lx,area=ones(Float32,size(x,2)),lons=linspace(0,360,size(x,1)),lats=linspace(90,-90,size(x,2)))
   nEx=maximum(lx)
   numCells=countNumCell(lx,nEx)
   nempty=sum(numCells.==0);
-  extremeList=[Extreme(i,zeros(Int,numCells[i],3),Array(eltype(x),numCells[i])) for i=1:nEx];
+  extremeList=[Extreme(i,zeros(Int,numCells[i],3),Array(eltype(x),numCells[i]),(0,0)) for i=1:nEx];
   indices2List(lx,x,extremeList);
   o=sortperm(numCells,rev=true)
   extremeList=extremeList[o];
