@@ -1,6 +1,6 @@
 using ExtremeStats
 println("Reading data")
-@time x,lons,lats,nlon,nlat,NpY,N_years = load_X("/Net/Groups/BGI/people/mjung/FLUXCOM/_ENSEMBLES/8daily/TERall/","TERall_","TERall",2001:2012,[-180,180],[90, -90]);
+@time x,lons,lats,nlon,nlat,NpY,N_years = load_X("/Net/Groups/BGI/people/mjung/FLUXCOM/_ENSEMBLES/8daily/TERall/","TERall_","TERall",2001:2012,[20,40],[40, 20]);
 println("Calculating anomalies")
 gc()
 @time x=get_anomalies(x,NpY,nlon,nlat)

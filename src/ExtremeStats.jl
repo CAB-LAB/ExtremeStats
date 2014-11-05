@@ -1,6 +1,6 @@
 module ExtremeStats
 include("Features.jl")
-export anomalies, get_anomalies, Extreme, load_X, label_Extremes, ExtremeList, Features, getFeatures, getSeasStat, getTbounds
+export anomalies, get_anomalies, Extreme, load_X, label_Extremes, ExtremeList, Features, getFeatures, getSeasStat, getTbounds, combineExtremes
 import Images.label_components
 import NetCDF.ncread
 
@@ -26,13 +26,13 @@ function load_X(data_path,fileprefix,varname,years,lon_range,lat_range)
   nlat=ilat_range[2]-ilat_range[1]+1
   lons=lons[ilon_range[1]:ilon_range[2]];
   lats=lats[ilat_range[1]:ilat_range[2]];
-  x=Array(Float32,nlon,nlat,N_years*46)
+  x=Array(Float32,nlon,nlat,N_years*NpY)
   iyear=1
   for iyear in 1:N_years
       println("$iyear")
       x[:,:,((iyear-1)*NpY+1):iyear*NpY]=ncread(joinpath(data_path,"$(fileprefix)$(years[iyear]).nc"),varname,[ilon_range[1],ilat_range[1],1],[nlon,nlat,-1]);
   end
-  return(x,lons,lats,nlon,nlat,NpY,N_years)
+  return(x,lons,lats,ilon_range[1],ilat_range[1],nlon,nlat,NpY,N_years)
 end
 
 random_x(nlon=200,nlat=200,N_years=7)=rand(Float32,nlon,nlat,N_years*46);
@@ -140,7 +140,7 @@ i=iround((length(xtest)-nNaN)*q)
 select(xtest[:],i)
 end
 
-function label_Extremes{T}(x::Array{T,3},quantile::Number;circular::Bool=false,pattern::BitArray=trues(3,3,3))
+function label_Extremes{T}(x::Array{T,3},quantile::Number;circular::Bool=false,pattern::BitArray=trues(3,3,3),area=ones(Float32,size(x,2)),lons=linspace(0,360,size(x,1)),lats=linspace(90,-90,size(x,2)))
   nlon=size(x,1)
   #First calculate threshold
   cmpfun = (quantile < 0.5) ? .< : .>
@@ -158,7 +158,8 @@ function label_Extremes{T}(x::Array{T,3},quantile::Number;circular::Bool=false,p
   lx=label_components(x2,pattern);
   x2=0;gc();
   circular && renameLabels(lx,x);
-  el=ExtremeList(x,lx);
+  println(typeof(lx))
+  el=ExtremeList(x,lx,area,lons,lats);
   return(el)
 end
 
@@ -197,6 +198,8 @@ type Extreme{T}
   locs::Array{Int,2}
   zvalues::Array{T,1}
   tbounds::(Int,Int)
+  lonbounds::(Int,Int)
+  latbounds::(Int,Int)
 end
 
 
@@ -206,35 +209,70 @@ type ExtremeList{T,U,V}
   area::Vector{U}
   lons::Vector{V}
   lats::Vector{V}
-  features::Dict{Symbol, Vector{T}}
 end
 
 function getTbounds(el::ExtremeList)
   for e in el.extremes
     tmin=typemax(Int)
     tmax=0
+    lonmin=typemax(Int)
+    lonmax=0
+    latmin=typemax(Int)
+    latmax=0
     for i=1:length(e.zvalues)
       if e.locs[i,3]<tmin tmin=e.locs[i,3] end
       if e.locs[i,3]>tmax tmax=e.locs[i,3] end
+      if e.locs[i,1]<lonmin lonmin=e.locs[i,1] end
+      if e.locs[i,1]>lonmax lonmax=e.locs[i,1] end
+      if e.locs[i,2]<latmin latmin=e.locs[i,2] end
+      if e.locs[i,2]>latmax latmax=e.locs[i,2] end
     end
     e.tbounds=(tmin,tmax)
+    e.lonbounds=(lonmin,lonmax)
+    e.latbounds=(latmin,latmax)
   end
 end
 
 typealias FeatureVector{T} Vector{T}
-function ExtremeList(x,lx,area=ones(Float32,size(x,2)),lons=linspace(0,360,size(x,1)),lats=linspace(90,-90,size(x,2)))
+
+function ExtremeList{T}(x::Array{T,3},lx::Array{Int,3},area=ones(Float32,size(x,2)),lons=linspace(0,360,size(x,1)),lats=linspace(90,-90,size(x,2)))
   nEx=maximum(lx)
   numCells=countNumCell(lx,nEx)
   nempty=sum(numCells.==0);
-  extremeList=[Extreme(i,zeros(Int,numCells[i],3),Array(eltype(x),numCells[i]),(0,0)) for i=1:nEx];
+  extremeList=[Extreme(i,zeros(Int,numCells[i],3),Array(eltype(x),numCells[i]),(0,0),(0,0),(0,0)) for i=1:nEx];
   indices2List(lx,x,extremeList);
   o=sortperm(numCells,rev=true)
   extremeList=extremeList[o];
   deleteat!(extremeList,(nEx-nempty+1):nEx);
-  return(ExtremeList(extremeList,area,lons,lats,Dict{Symbol, FeatureVector{eltype(x)}}()))
+  return(ExtremeList(extremeList,area,lons,lats))
+end
+
+function combineExtremes(elin::ExtremeList)
+    totlen=0
+    nEx=length(elin.extremes)
+    for i=1:nEx
+        totlen=totlen+length(elin.extremes[i].zvalues)
+    end
+    locs=Array(Int,totlen,3)
+    zvalues=Array(eltype(elin.extremes[1].zvalues),totlen)
+    k=1
+    for i=1:nEx
+        for j=1:length(elin.extremes[i].zvalues)
+            locs[k,1]=elin.extremes[i].locs[j,1]
+            locs[k,2]=elin.extremes[i].locs[j,2]
+            locs[k,3]=elin.extremes[i].locs[j,3]
+            zvalues[k]=elin.extremes[i].zvalues[j]
+            k=k+1
+        end
+    end
+    mins=minimum(locs,1)
+    maxs=maximum(locs,1)
+    e=Extreme(1,locs,zvalues,(mins[3],maxs[3]),(mins[1],maxs[1]),(mins[2],maxs[2]))
+    elout=ExtremeList([e],elin.area,elin.lons,elin.lats)
 end
 
 function countNumCell(labelList,nEx)
+  println(nEx)
   lAr=zeros(Int,nEx)
   for i=1:length(labelList)
     j=labelList[i]

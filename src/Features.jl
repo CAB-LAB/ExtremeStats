@@ -1,4 +1,4 @@
-﻿module Features
+module Features
 const chosenFeatures=Array(DataType,0)
 #Define Accumulator behaviors
 abstract Accumulator
@@ -27,11 +27,32 @@ type AR_TS_acc <: Accumulator end
 init(::Type{AR_TS_acc})= :(ar_ts_acc=zeros(eltype(area),max_t-min_t+1))
 accu(::Type{AR_TS_acc})= :(ar_ts_acc[x[i,3]-min_t+1]=ar_ts_acc[x[i,3]-min_t+1]+area[x[i,2]])
 
-
+#Define default accumulator (empty)
+accumulators{T<:Any}(::Type{T})=()
 type Mean end
 accumulators(::Type{Mean})=(Sum_z_acc,Weight_acc)
 final(::Type{Mean})= :(sum_z_acc/weight_acc)
 rettype(::Type{Mean},e)=eltype(e.extremes[1].zvalues)
+
+type Min_t end
+type Max_t end
+type Min_lon end
+type Max_lon end
+type Min_lat end
+type Max_lat end
+final(::Type{Min_t})= :(e.tbounds[1])
+final(::Type{Max_t})= :(e.tbounds[2])
+final(::Type{Min_lon})= :(e.lonbounds[1])
+final(::Type{Max_lon})= :(e.lonbounds[2])
+final(::Type{Min_lat})= :(e.latbounds[1])
+final(::Type{Max_lat})= :(e.latbounds[2])
+rettype(::Type{Min_t},e)=Int
+rettype(::Type{Max_t},e)=Int
+rettype(::Type{Min_lon},e)=Int
+rettype(::Type{Max_lon},e)=Int
+rettype(::Type{Min_lat},e)=Int
+rettype(::Type{Max_lat},e)=Int
+
 type Max_z end
 accumulators(::Type{Max_z})=(Max_z_acc,)
 final(::Type{Max_z})= :(max_z_acc)
