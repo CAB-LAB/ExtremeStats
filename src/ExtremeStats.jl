@@ -4,13 +4,15 @@ export anomalies, get_anomalies, Extreme, load_X, label_Extremes, ExtremeList, F
 import Images.label_components
 import NetCDF.ncread
 
-function load_X(evapofrac_path,years,lat_range,lon_range)
+function load_X(data_path,fileprefix,varname,years,lon_range,lat_range)
 
   N_years   = length(years)
   y=years[1]
-  lons=ncread(joinpath(evapofrac_path,"EvapoFrac.$(years[1]).nc"),"lon")
-  lats=ncread(joinpath(evapofrac_path,"EvapoFrac.$(years[1]).nc"),"lat")
-  time=ncread(joinpath(evapofrac_path,"EvapoFrac.$(years[1]).nc"),"time")
+  lons=ncread(joinpath(data_path,"$(fileprefix)$(years[1]).nc"),"lon")
+  lats=ncread(joinpath(data_path,"$(fileprefix)$(years[1]).nc"),"lat")
+  time=ncread(joinpath(data_path,"$(fileprefix)$(years[1]).nc"),"time")
+  println("lons: $(lons[1]) to $(lons[end])")
+  println("lats: $(lats[1]) to $(lats[end])")
   NpY=length(time)
   lonstep=lons[2]-lons[1]
   latstep=lats[2]-lats[1]
@@ -18,15 +20,17 @@ function load_X(evapofrac_path,years,lat_range,lon_range)
   cmplat=latstep>0 ? .> : .<
   ilon_range=sort!([findfirst(cmplon(lons,lon_range[1])),findfirst(cmplon(lons,lon_range[2]-lonstep))])
   ilat_range=sort!([findfirst(cmplat(lats,lat_range[1])),findfirst(cmplat(lats,lat_range[2]-latstep))])
-  nlon=ilon_range[2]-ilon_range[1]
-  nlat=ilat_range[2]-ilat_range[1]
+  println("ilons: $(ilon_range[1]) to $(ilon_range[end])")
+  println("ilats: $(ilat_range[1]) to $(ilat_range[end])")
+  nlon=ilon_range[2]-ilon_range[1]+1
+  nlat=ilat_range[2]-ilat_range[1]+1
   lons=lons[ilon_range[1]:ilon_range[2]];
   lats=lats[ilat_range[1]:ilat_range[2]];
   x=Array(Float32,nlon,nlat,N_years*46)
   iyear=1
   for iyear in 1:N_years
       println("$iyear")
-      x[:,:,((iyear-1)*NpY+1):iyear*NpY]=ncread(joinpath(evapofrac_path,"EvapoFrac.$(years[iyear]).nc"),"EvapoFrac",[ilon_range[1],ilat_range[1],1],[nlon,nlat,-1]);
+      x[:,:,((iyear-1)*NpY+1):iyear*NpY]=ncread(joinpath(data_path,"$(fileprefix)$(years[iyear]).nc"),varname,[ilon_range[1],ilat_range[1],1],[nlon,nlat,-1]);
   end
   return(x,lons,lats,nlon,nlat,NpY,N_years)
 end
@@ -34,22 +38,27 @@ end
 random_x(nlon=200,nlat=200,N_years=7)=rand(Float32,nlon,nlat,N_years*46);
 
 
-function getSeasStat(series,NY,NpY,msc,stdmsc)
+function getSeasStat(series,ilon,ilat,NY,NpY,msc,stdmsc)
     NY*NpY==length(series) || error("Length of series not good")
     for iday = 1:NpY
         s=zero(eltype(series))
         s2=zero(eltype(series))
         n=0
         for iyear=0:(NY-1)
-            v=series[(iyear)*NpY+iday]
+            v=series[ilon,ilat,(iyear)*NpY+iday]
             if !isnan(v)
                 s2=s2+v*v
                 s=s+v
                 n=n+1
             end
         end
-        msc[iday]=s/n
-        stdmsc[iday]=sqrt(s2/n-s*s/(n*n))
+        if n>0
+            msc[iday]=s/n
+            stdmsc[iday]= sqrt(max(s2/n-s*s/(n*n),zero(eltype(series))))
+        else
+            msc[iday]=nan(eltype(series))
+            stdmsc[iday]=nan(eltype(series))
+        end
     end
     msc,stdmsc
 end
@@ -109,20 +118,20 @@ function smooth_circular!(xin::Vector,xout::Vector,wl::Integer=9)
     end
 end
 
-function anomalies(series::SubArray,msc,stdmsc,smsc,sstdmsc,series_anomaly;NpY::Int=46,filt=9)
+function anomalies(series::Array,ilon,ilat,msc,stdmsc,smsc,sstdmsc,series_anomaly;NpY::Int=46,filt=9)
   # length of time series
   N    = length(series)
-  @assert mod(N,NpY)==0
-  # devide length of time series by samples/year -> nr years
+  @assert mod(N,NpY) == 0
+  # divide length of time series by samples/year -> nr years
   NY=ifloor(N/NpY)
   # mean seasonal cycle
-    getSeasStat(series,NY,NpY,msc,stdmsc)
+    getSeasStat(series,ilon,ilat,NY,NpY,msc,stdmsc)
   # smooth MAC
     smooth_circular!(msc, smsc, 9)
-    smooth_circular!(stdmsc, sstdmsc, 9)
+    #smooth_circular!(stdmsc, sstdmsc, 9)
   # deseasoanlized time series, difference of time series and mac
     for iyear=1:NY,iday=1:NpY
-        series_anomaly[(iyear-1)*NpY+iday]  = (series[(iyear-1)*NpY+iday] - smsc[iday])/sstdmsc[iday]
+        series_anomaly[ilon,ilat,(iyear-1)*NpY+iday]  = series[ilon,ilat,(iyear-1)*NpY+iday] - smsc[iday]
     end
 end
 
@@ -157,11 +166,11 @@ end
 
 
 function get_anomalies(x,NpY,nlon,nlat)
-msc    = Array(Float64,NpY) #Allocate once
-stdmsc = Array(Float64,NpY) #Allocate once
+msc     = Array(Float64,NpY) #Allocate once
+stdmsc  = Array(Float64,NpY) #Allocate once
 smsc    = Array(Float64,NpY) #Allocate once
 sstdmsc = Array(Float64,NpY) #Allocate once
-anomar=similar(x)
+anomar  = similar(x)
 for lon in 1:nlon, lat in 1:nlat
     anomalies(sub(x,lon,lat,:),msc,stdmsc,smsc,sstdmsc,sub(anomar,lon,lat,:),NpY=NpY)
     #println("$lon $lat")

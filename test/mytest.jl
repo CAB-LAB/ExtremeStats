@@ -1,6 +1,8 @@
 using ExtremeStats
 println("Reading data")
-@time x,lons,lats,nlon,nlat,NpY,N_years = load_X("/Users/fgans/scratch/data/",2002:2007,[45,55],[25, 45]);
+@time x,lons,lats,nlon,nlat,NpY,N_years = load_X("/Net/Groups/BGI/people/mjung/FLUXCOM/_ENSEMBLES/8daily/TERall/","TERall_","TERall",2002:2007,[10,20],[55, 45]);
+println("Calculating anomalies")
+@time x=get_anomalies(x,NpY,nlon,nlat)
 println("Labelling extremes")
 @time el=label_Extremes(x,0.05);
 println("Calculating time bounds")
