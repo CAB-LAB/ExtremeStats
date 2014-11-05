@@ -39,7 +39,6 @@ random_x(nlon=200,nlat=200,N_years=7)=rand(Float32,nlon,nlat,N_years*46);
 
 
 function getSeasStat(series,ilon,ilat,NY,NpY,msc,stdmsc)
-    NY*NpY==length(series) || error("Length of series not good")
     for iday = 1:NpY
         s=zero(eltype(series))
         s2=zero(eltype(series))
@@ -120,7 +119,7 @@ end
 
 function anomalies(series::Array,ilon,ilat,msc,stdmsc,smsc,sstdmsc,series_anomaly;NpY::Int=46,filt=9)
   # length of time series
-  N    = length(series)
+  N    = size(series,3)
   @assert mod(N,NpY) == 0
   # divide length of time series by samples/year -> nr years
   NY=ifloor(N/NpY)
@@ -172,7 +171,7 @@ smsc    = Array(Float64,NpY) #Allocate once
 sstdmsc = Array(Float64,NpY) #Allocate once
 anomar  = similar(x)
 for lon in 1:nlon, lat in 1:nlat
-    anomalies(sub(x,lon,lat,:),msc,stdmsc,smsc,sstdmsc,sub(anomar,lon,lat,:),NpY=NpY)
+    anomalies(x,lon,lat,msc,stdmsc,smsc,sstdmsc,anomar,NpY=NpY)
     #println("$lon $lat")
 end
   return(anomar)
