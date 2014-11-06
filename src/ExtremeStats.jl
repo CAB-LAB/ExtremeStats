@@ -163,7 +163,35 @@ function label_Extremes{T}(x::Array{T,3},quantile::Number;circular::Bool=false,p
   return(el)
 end
 
-
+function label_Extremes{T}(x::Array{T,3},quantile::Number,mask::BitArray{3};circular::Bool=false,pattern::BitArray=trues(3,3,3),area=ones(Float32,size(x,2)),lons=linspace(0,360,size(x,1)),lats=linspace(90,-90,size(x,2)))
+    #This is a special case of the function if an additional mask is provided, this is dirty at the moment, will be refactored later
+    size(x)==size(mask) || error("Sizes of x and mask must be the same")
+  nlon=size(x,1)
+  #First calculate threshold
+  cmpfun = (quantile < 0.5) ? .< : .>
+  tres = nanquantile(x,quantile)
+  #Then allocate bitArray that hold the true/falses
+  offs = circular ? 1 : 0
+  x2=BitArray(size(x,1)+offs,size(x,2),size(x,3))
+  #Fill BitArray
+  x2[1:nlon,:,:]=cmpfun(x,tres)
+  presum=sum(x2)
+  for i=1:size(mask,3), j=1:size(mask,2), k=1:size(mask,1)
+      x2[k,j,i]=x2[k,j,i] && mask[k,j,i]
+  end
+  aftersum=sum(x2)
+  println("$(presum-aftersum) of $(presum) elements were removed by additional condition ()$((presum-aftersum)/presum)%)")
+  if circular
+    #Now attach first slice to the end (circular globe)
+    x2[nlon+1,:,:]=x2[1,:,:];
+  end
+  #Do the labelling
+  lx=label_components(x2,pattern);
+  x2=0;gc();
+  circular && renameLabels(lx,x);
+  el=ExtremeList(x,lx,area,lons,lats);
+  return(el)
+end
 
 function get_anomalies(x,NpY,nlon,nlat)
 msc     = Array(Float64,NpY) #Allocate once
