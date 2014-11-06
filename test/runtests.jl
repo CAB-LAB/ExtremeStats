@@ -13,7 +13,12 @@ getSeasStat(testx,1,1,2,46,msc,stdmsc)
 @test all(msc.==1.5*sin(t))
 # std of msc should be 0.5 sin(t)
 @test all([isapprox(abs(stdmsc[i]),abs(0.5*sin(t)[i])) for i = 1:46])
-
+#Another test, direct comparison to R results
+rtab=readdlm(joinpath(Pkg.dir(),"ExtremeStats/test/anomaly_example.csv"),' ')
+r_in=reshape(rtab[:,1],1,1,552)
+r_out=reshape(rtab[:,2],1,1,552)
+j_out=get_anomalies(r_in,46,1,1)
+@test all([isapprox(r_out[i],j_out[i]) for i=1:552])
 
 #Test Extreme Cluster detection
 a=zeros(Float32,100,100,100)
