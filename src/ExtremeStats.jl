@@ -38,22 +38,24 @@ end
 random_x(nlon=200,nlat=200,N_years=7)=rand(Float32,nlon,nlat,N_years*46);
 
 
-function getSeasStat(series,ilon,ilat,NY,NpY,msc,stdmsc)
-    for iday = 1:NpY
-        s=zero(eltype(series))
-        s2=zero(eltype(series))
-        n=0
-        for iyear=0:(NY-1)
-            v=series[ilon,ilat,(iyear)*NpY+iday]
+function getSeasStat(series,ilon,ilat,NY,NpY,msc,stdmsc,n)
+    fill!(msc,0.0)
+    fill!(stdmsc,0.0)
+    fill!(n,0.0)
+    for iyear=0:(NY-1)
+        for iday = 1:NpY
+            v=series[ilon,ilat,iyear*NpY+iday]
             if !isnan(v)
-                s2=s2+v*v
-                s=s+v
-                n=n+1
+                stdmsc[iday]=stdmsc[iday]+v*v
+                msc[iday]=msc[iday]+v
+                n[iday]=n[iday]+1
             end
         end
-        if n>0
-            msc[iday]=s/n
-            stdmsc[iday]= sqrt(max(s2/n-s*s/(n*n),zero(eltype(series))))
+    end
+    for iday = 1:NpY 
+        if n[iday]>0
+            stdmsc[iday]=sqrt(max(stdmsc[iday]/n[iday]-msc[iday]*msc[iday]/(n[iday]*n[iday]),zero(eltype(series))))
+            msc[iday]=msc[iday]/n[iday]
         else
             msc[iday]=nan(eltype(series))
             stdmsc[iday]=nan(eltype(series))
@@ -117,27 +119,36 @@ function smooth_circular!(xin::Vector,xout::Vector,wl::Integer=9)
     end
 end
 
-function anomalies(series::Array,ilon,ilat,msc,stdmsc,smsc,sstdmsc,series_anomaly;NpY::Int=46,filt=9)
+function anomalies(series::Array,ilon,ilat,msc,stdmsc,smsc,sstdmsc,n,series_anomaly;NpY::Int=46,filt=9)
   # length of time series
   N    = size(series,3)
   @assert mod(N,NpY) == 0
   # divide length of time series by samples/year -> nr years
   NY=ifloor(N/NpY)
   # mean seasonal cycle
-    getSeasStat(series,ilon,ilat,NY,NpY,msc,stdmsc)
+    getSeasStat(series,ilon,ilat,NY,NpY,msc,stdmsc,n)
   # smooth MAC
     smooth_circular!(msc, smsc, 9)
     #smooth_circular!(stdmsc, sstdmsc, 9)
   # deseasoanlized time series, difference of time series and mac
-    for iyear=1:NY,iday=1:NpY
-        series_anomaly[ilon,ilat,(iyear-1)*NpY+iday]  = series[ilon,ilat,(iyear-1)*NpY+iday] - smsc[iday]
+    for iyear=0:(NY-1),iday=1:NpY
+        series_anomaly[ilon,ilat,iyear*NpY+iday]  = series[ilon,ilat,iyear*NpY+iday] - smsc[iday]
     end
 end
 
-function nanquantile(xtest,q)
-nNaN  = mapreduce(isnan,+,xtest)
-i=iround((length(xtest)-nNaN)*q)
-select(xtest[:],i)
+function nanquantile(xtest,q;useabs=false)
+    nNaN  = 0; for i=1:length(xtest) nNaN = isnan(xtest[i]) ? nNaN+1 : nNaN end
+    lv=length(xtest)-nNaN
+    index = 1 + (lv-1)*q
+    lo = ifloor(index)
+    hi = iceil(index)
+    if useabs 
+        vals=select!(abs(xtest[:]),lo:hi)
+    else
+        vals=select!(copy(xtest[:]),lo:hi)
+    end
+    h=index - lo
+    r = (1.0-h)*vals[1] + h*vals[2]
 end
 
 function label_Extremes{T}(x::Array{T,3},quantile::Number;circular::Bool=false,pattern::BitArray=trues(3,3,3),area=ones(Float32,size(x,2)),lons=linspace(0,360,size(x,1)),lats=linspace(90,-90,size(x,2)))
@@ -193,19 +204,31 @@ function label_Extremes{T}(x::Array{T,3},quantile::Number,mask::BitArray{3};circ
   return(el)
 end
 
-function get_anomalies(x,NpY,nlon,nlat)
-msc     = Array(Float64,NpY) #Allocate once
-stdmsc  = Array(Float64,NpY) #Allocate once
-smsc    = Array(Float64,NpY) #Allocate once
-sstdmsc = Array(Float64,NpY) #Allocate once
-anomar  = similar(x)
-for lon in 1:nlon, lat in 1:nlat
-    anomalies(x,lon,lat,msc,stdmsc,smsc,sstdmsc,anomar,NpY=NpY)
-    #println("$lon $lat")
-end
-  return(anomar)
+function get_anomalies(x,NpY)
+    anomar = similar(x)
+    get_anomalies!(x,NpY,anomar)
+    return(anomar)
 end
 
+function get_anomalies!(x,NpY)
+    get_anomalies!(x,NpY,x)
+    return(x)
+end
+
+function get_anomalies!(x,NpY,anomar)
+    nlon=size(x,1)
+    nlat=size(x,2)
+    msc     = Array(Float64,NpY) #Allocate once
+    stdmsc  = Array(Float64,NpY) #Allocate once
+    smsc    = Array(Float64,NpY) #Allocate once
+    sstdmsc = Array(Float64,NpY) #Allocate once
+    n       = Array(Int64,NpY)
+    for lon in 1:nlon, lat in 1:nlat
+        anomalies(x,lon,lat,msc,stdmsc,smsc,sstdmsc,n,anomar,NpY=NpY)
+        #println("$lon $lat")
+    end
+    return(anomar)
+end
 
 function indices2List(larr,xarr,extremeList)
     curind=ones(Int,length(extremeList))
