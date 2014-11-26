@@ -1,8 +1,29 @@
 module ExtremeStats
+include("Anomalies.jl")
 include("Features.jl")
+
 export anomalies, get_anomalies, Extreme, load_X, label_Extremes, ExtremeList, Features, getFeatures, getSeasStat, getTbounds, combineExtremes
 import Images.label_components
 import NetCDF.ncread
+
+type Extreme{T}
+  index::Int64
+  locs::Array{Int,2}
+  zvalues::Array{T,1}
+  tbounds::(Int,Int)
+  lonbounds::(Int,Int)
+  latbounds::(Int,Int)
+end
+
+
+
+type ExtremeList{T,U,V}
+  extremes::Array{Extreme{T}}
+  area::Vector{U}
+  lons::Vector{V}
+  lats::Vector{V}
+end
+
 
 function load_X(data_path,fileprefix,varname,years,lon_range,lat_range)
 
@@ -64,77 +85,6 @@ function getSeasStat(series,ilon,ilat,NY,NpY,msc,stdmsc,n)
     msc,stdmsc
 end
 
-function smooth_circular!(xin::Vector,xout::Vector,wl::Integer=9)
-    mod(wl,2)==1 || error("Window length must be uneven")
-    offs = div(wl,2)
-    fwl=float64(wl)
-    n=length(xin)
-    awl=0
-    s=0.0
-    for i=(n-offs+1):n
-        if !isnan(xin[i])
-            s=s+xin[i]
-            awl=awl+1
-        end
-    end
-    for i=1:(offs+1)
-        if !isnan(xin[i])
-            s=s+xin[i];
-            awl=awl+1
-        end
-    end
-    #Start main loop
-    for i=1:offs
-        xout[i]=s/awl
-        if !isnan(xin[n-offs+i])
-            s=s-xin[n-offs+i]
-            awl=awl-1
-        end
-        if !isnan(xin[offs+1+i])
-            s=s+xin[offs+1+i]
-            awl=awl+1
-        end
-    end
-    for i=(offs+1):(n-offs-1)
-        xout[i]=s/awl
-        if !isnan(xin[i-offs])
-            s=s-xin[i-offs]
-            awl=awl-1
-        end
-        if !isnan(xin[offs+1+i])
-            s=s+xin[offs+1+i]
-            awl=awl+1
-        end
-    end
-    for i=(n-offs):n
-        xout[i]=s/awl
-        if !isnan(xin[i-offs])
-            s=s-xin[i-offs]
-            awl=awl-1
-        end
-        if !isnan(xin[i-n+offs+1])
-            s=s+xin[i-n+offs+1]
-            awl=awl+1
-        end
-    end
-end
-
-function anomalies(series::Array,ilon,ilat,msc,stdmsc,smsc,sstdmsc,n,series_anomaly;NpY::Int=46,filt=9)
-  # length of time series
-  N    = size(series,3)
-  @assert mod(N,NpY) == 0
-  # divide length of time series by samples/year -> nr years
-  NY=ifloor(N/NpY)
-  # mean seasonal cycle
-    getSeasStat(series,ilon,ilat,NY,NpY,msc,stdmsc,n)
-  # smooth MAC
-    smooth_circular!(msc, smsc, 9)
-    #smooth_circular!(stdmsc, sstdmsc, 9)
-  # deseasoanlized time series, difference of time series and mac
-    for iyear=0:(NY-1),iday=1:NpY
-        series_anomaly[ilon,ilat,iyear*NpY+iday]  = series[ilon,ilat,iyear*NpY+iday] - smsc[iday]
-    end
-end
 
 function nanquantile(xtest,q;useabs=false)
     nNaN  = 0; for i=1:length(xtest) nNaN = isnan(xtest[i]) ? nNaN+1 : nNaN end
@@ -204,31 +154,6 @@ function label_Extremes{T}(x::Array{T,3},quantile::Number,mask::BitArray{3};circ
   return(el)
 end
 
-function get_anomalies(x,NpY)
-    anomar = similar(x)
-    get_anomalies!(x,NpY,anomar)
-    return(anomar)
-end
-
-function get_anomalies!(x,NpY)
-    get_anomalies!(x,NpY,x)
-    return(x)
-end
-
-function get_anomalies!(x,NpY,anomar)
-    nlon=size(x,1)
-    nlat=size(x,2)
-    msc     = Array(Float64,NpY) #Allocate once
-    stdmsc  = Array(Float64,NpY) #Allocate once
-    smsc    = Array(Float64,NpY) #Allocate once
-    sstdmsc = Array(Float64,NpY) #Allocate once
-    n       = Array(Int64,NpY)
-    for lon in 1:nlon, lat in 1:nlat
-        anomalies(x,lon,lat,msc,stdmsc,smsc,sstdmsc,n,anomar,NpY=NpY)
-        #println("$lon $lat")
-    end
-    return(anomar)
-end
 
 function indices2List(larr,xarr,extremeList)
     curind=ones(Int,length(extremeList))
@@ -244,23 +169,6 @@ function indices2List(larr,xarr,extremeList)
     return(curind)
 end
 
-type Extreme{T}
-  index::Int64
-  locs::Array{Int,2}
-  zvalues::Array{T,1}
-  tbounds::(Int,Int)
-  lonbounds::(Int,Int)
-  latbounds::(Int,Int)
-end
-
-
-
-type ExtremeList{T,U,V}
-  extremes::Array{Extreme{T}}
-  area::Vector{U}
-  lons::Vector{V}
-  lats::Vector{V}
-end
 
 function getTbounds(el::ExtremeList)
   for e in el.extremes
@@ -365,15 +273,16 @@ end
 
 
 function getFeatures(el::ExtremeList,features...)
-  myf       = ExtremeStats.Features.calcFeatureFunction(features...)
-  prearrays = ExtremeStats.Features.getPreArrays(length(el.extremes[1].zvalues),eltype(el.extremes[1].zvalues),features...)
-  eval(myf)
-  retar     = [Array(Features.rettype(f,el),length(el.extremes)) for f in features]
-  for i=1:length(el.extremes)
-    ret=getFeatures(el.extremes[i],el.area,el.lons,el.lats,prearrays)
-    for j=1:length(ret) retar[j][i]=ret[j] end
-  end
-  return retar
+    el.extremes[1].tbounds==(0,0) && getTbounds(el)
+    myf       = ExtremeStats.Features.calcFeatureFunction(features...)
+    prearrays = ExtremeStats.Features.getPreArrays(length(el.extremes[1].zvalues),eltype(el.extremes[1].zvalues),features...)
+    eval(myf)
+    retar     = [Array(Features.rettype(f,el),length(el.extremes)) for f in features]
+    for i=1:length(el.extremes)
+        ret=getFeatures(el.extremes[i],el.area,el.lons,el.lats,prearrays)
+        for j=1:length(ret) retar[j][i]=ret[j] end
+    end
+    return retar
 end
 
 end # module
