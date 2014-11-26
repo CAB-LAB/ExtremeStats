@@ -8,7 +8,8 @@ testx=[sin(t),2*sin(t)]
 testx=reshape(testx,1,1,92)
 msc=Array(Float64,46)
 stdmsc=Array(Float64,46)
-getSeasStat(testx,1,1,2,46,msc,stdmsc)
+n=Array(Int64,46)
+getSeasStat(testx,1,1,2,46,msc,stdmsc,n)
 # msc should be 1.5*si(t)
 @test all(msc.==1.5*sin(t))
 # std of msc should be 0.5 sin(t)
@@ -17,7 +18,7 @@ getSeasStat(testx,1,1,2,46,msc,stdmsc)
 rtab=readdlm(joinpath(Pkg.dir(),"ExtremeStats/test/anomaly_example.csv"),' ')
 r_in=reshape(rtab[:,1],1,1,552)
 r_out=reshape(rtab[:,2],1,1,552)
-j_out=get_anomalies(r_in,46,1,1)
+j_out=get_anomalies(r_in,46)
 @test all([isapprox(r_out[i],j_out[i]) for i=1:552])
 
 #Test Extreme Cluster detection
@@ -29,6 +30,10 @@ b=Float32[i*0.1+k for i=1:10,j=1:10,k=1:10]
 bweights=[area[j] for i=1:10,j=46:55,k=1:10]
 a[91:100,46:55,66:75]=b
 a[1:10,46:55,66:75]=b
+#Also add a low extreme
+c=rand(Float32,10,10,10)-100.0
+a[51:60,51:60,51:60]=c
+cweights=[area[j] for i=51:60,j=51:60,k=51:60]
 
 #And add some NaNs
 a[9:10,9:10,9:10]=NaN32
@@ -118,3 +123,28 @@ bweights=cat(1,bweights,bweights)
 @test all([isapprox(f2[14][1][i],(sum((b.*bweights),(1,2))./sum(bweights,(1,2)))[i]) for i=1:length(f2[14][1])])
 @test all([isapprox(f2[15][1][i],sum(bweights,(1,2))[i]) for i=1:length(f2[15][1])])
 
+# Now label low extremes
+el3=label_Extremes(a,0.05,area=area,circular=false)
+getTbounds(el3);
+f3=getFeatures(el3,Features.Mean,Features.Max_z,Features.Min_z,Features.Duration,Features.Size,Features.NumPixel,
+    Features.Min_t,Features.Max_t,Features.Min_lon,Features.Max_lon,Features.Min_lat,Features.Max_lat,Features.Quantile,
+    Features.TS_ZValue, Features.TS_Area);
+@test length(el3.extremes)==1
+@test all(sort(el3.extremes[1].zvalues).==sort(c[:]))
+@test isapprox(f3[1][1],mean(c))
+@test isapprox(f3[2][1],maximum(c))
+@test isapprox(f3[3][1],minimum(c))
+@test isapprox(f3[4][1],9)
+@test isapprox(f3[5][1],mean(area[51:60])*1000)
+@test f3[6][1]==1000
+@test f3[7][1]==51
+@test f3[8][1]==60
+@test f3[9][1]==51
+@test f3[10][1]==60
+@test f3[11][1]==51
+@test f3[12][1]==60
+@test isapprox(f3[13][1][1],quantile(c[:],0.1),rtol=0.05)
+@test isapprox(f3[13][1][2],quantile(c[:],0.5),rtol=0.05)
+@test isapprox(f3[13][1][3],quantile(c[:],0.9),rtol=0.05)
+@test all([isapprox(f3[14][1][i],(sum((c.*cweights),(1,2))./sum(cweights,(1,2)))[i]) for i=1:length(f3[14][1])])
+@test all([isapprox(f3[15][1][i],sum(cweights,(1,2))[i]) for i=1:length(f3[15][1])])
