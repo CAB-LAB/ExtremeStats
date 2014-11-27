@@ -1,8 +1,9 @@
 module ExtremeStats
+
 include("Anomalies.jl")
 include("Features.jl")
 
-export get_anomalies, Extreme, load_X, label_Extremes, ExtremeList, Features, getFeatures, combineExtremes
+export get_anomalies, Extreme, load_X, label_Extremes, ExtremeList, Features, getFeatures, combineExtremes, sortby
 import Images.label_components
 import NetCDF.ncread
 
@@ -23,7 +24,14 @@ type ExtremeList{T,U,V}
   lons::Vector{V}
   lats::Vector{V}
 end
+
+include("io.jl")
+
 getindex(el::ExtremeList,i...)=getindex(el.extremes,i...)
+function sortby!(el::ExtremeList,x::Vector;rev=false)
+    o=sortperm(x,rev=rev)
+    el.extremes[:]=el.extremes[o]
+end
 
 function load_X(data_path,fileprefix,varname,years,lon_range,lat_range)
 
