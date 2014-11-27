@@ -59,6 +59,14 @@ This will read a datacube from NetCDF files in `data_path` with the given variab
 
     load_X("/Net/Groups/BGI/people/mjung/FLUXCOM/_ENSEMBLES/8daily/TERall/","TERall_","TERall",2001:2012,[20,40],[40, 20]);
 
+If you want to write the output of the analysis to NetCDF files, there are the following functions:
+
+    writeExtremes(el::ExtremeList,folder::String;nmax=1000,prefix="e")
+    writeFeatures(f,featnames::Vector,file;overwrite=true)
+    writeTimeSeries(f,filename,varNames::Vector)
+
+For an example usage see /Net/Groups/BGI/scratch/fgans/Extremese/mytest_halfdeg.jl.
+
 If you want to combine a list of detected extremes into a big one, you can call
 
     elCombined = combineExtremes(el)
