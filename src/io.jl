@@ -1,7 +1,7 @@
 import NetCDF.nccreate, NetCDF.ncwrite, NetCDF.ncclose
 # writes the first 1000 extremes of an extremelist to a nectdf file
 function writeExtremes(el::ExtremeList,folder::String;nmax=1000,prefix="e")
-    try mkdir(folder) end
+    run(`mkdir -p $(folder)`)
     for iex=1:min(nmax,length(el.extremes))
         si=@sprintf("%04d",iex)
         filename="$(folder)/$(prefix)$(si).nc"
@@ -51,10 +51,16 @@ function writeFeatures(f::Vector,featnames::Vector,file;overwrite=true)
     ncclose()
 end
 
-function writeTimeSeries(f::Vector,i::Integer,filename,variable="mean_zvalue")
+writeTimeSeries(f::Vector,filename,varNames::String)=writeTimeSeries(f,filename,[varNames])
+function writeTimeSeries(f::Vector,filename,varNames::Vector)
     isfile(filename) && rm(filename)
-    ntstep=length(f[i])
-    nccreate(filename,variable,{"unit"=>"none"},"timestep",[1:ntstep])
-    ncwrite(f[i],filename,"mean_zvalue")
+    ntstep=length(f[1][1])
+    length(varNames)==length(f) || error("number of variable names must equal")
+    for i=1:length(f)
+        nccreate(filename,varNames[i],{"unit"=>"none"},"timestep",[1:ntstep])
+    end
+    for i=1:length(f)
+        ncwrite(f[i][1],filename,varNames[i])
+    end
     ncclose()
 end
