@@ -3,7 +3,7 @@ module ExtremeStats
 include("anomalies.jl")
 include("features.jl")
 
-export get_anomalies, get_anomalies!, Extreme, load_X, label_Extremes, ExtremeList, Features, getFeatures, combineExtremes, sortby
+export get_anomalies, get_anomalies!, Extreme, load_X, label_Extremes, ExtremeList, Features, getFeatures, combineExtremes, sortby, writeExtremes, writeFeatures, writeTimeSeries
 import Images.label_components
 import NetCDF.ncread
 
