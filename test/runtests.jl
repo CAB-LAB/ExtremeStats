@@ -9,7 +9,7 @@ testx=reshape(testx,1,1,92)
 msc=Array(Float64,46)
 stdmsc=Array(Float64,46)
 n=Array(Int64,46)
-getSeasStat(testx,1,1,2,46,msc,stdmsc,n)
+ExtremeStats.getSeasStat(testx,1,1,2,46,msc,stdmsc,n)
 # msc should be 1.5*si(t)
 @test all(msc.==1.5*sin(t))
 # std of msc should be 0.5 sin(t)
@@ -38,8 +38,7 @@ cweights=[area[j] for i=51:60,j=51:60,k=51:60]
 #And add some NaNs
 a[9:10,9:10,9:10]=NaN32
 #Test without circular
-el1=label_Extremes(a,0.95,area=area,circular=false)
-getTbounds(el1);
+el1=label_Extremes(a,quantile=0.95,area=area,circular=false)
 f1=f1=getFeatures(el1,Features.Mean,Features.Max_z,Features.Min_z,Features.Duration,Features.Size,Features.NumPixel,
     Features.Min_t,Features.Max_t,Features.Min_lon,Features.Max_lon,Features.Min_lat,Features.Max_lat,Features.Quantile,
     Features.TS_ZValue, Features.TS_Area);
@@ -95,8 +94,7 @@ f1=f1=getFeatures(el1,Features.Mean,Features.Max_z,Features.Min_z,Features.Durat
 
 
 #Test with circular
-el2 = label_Extremes(a,0.95,area=area,circular=true)
-getTbounds(el2);
+el2 = label_Extremes(a,quantile=0.95,area=area,circular=true)
 f2=getFeatures(el2,Features.Mean,Features.Max_z,Features.Min_z,Features.Duration,Features.Size,Features.NumPixel,
     Features.Min_t,Features.Max_t,Features.Min_lon,Features.Max_lon,Features.Min_lat,Features.Max_lat,Features.Quantile,
     Features.TS_ZValue, Features.TS_Area);
@@ -124,8 +122,7 @@ bweights=cat(1,bweights,bweights)
 @test all([isapprox(f2[15][1][i],sum(bweights,(1,2))[i]) for i=1:length(f2[15][1])])
 
 # Now label low extremes
-el3=label_Extremes(a,0.05,area=area,circular=false)
-getTbounds(el3);
+el3=label_Extremes(a,quantile=0.05,area=area,circular=false)
 f3=getFeatures(el3,Features.Mean,Features.Max_z,Features.Min_z,Features.Duration,Features.Size,Features.NumPixel,
     Features.Min_t,Features.Max_t,Features.Min_lon,Features.Max_lon,Features.Min_lat,Features.Max_lat,Features.Quantile,
     Features.TS_ZValue, Features.TS_Area);

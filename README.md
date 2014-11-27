@@ -6,17 +6,19 @@ Basic usage is as follows:
 
 Given a spatiotemporal data array **x** with dimensions in the order (lon,lat,time) you can call
 
-    el=label_Extremes(x,tres,area=area,lons=lons,lats=lats,circular=true)
+    el=label_Extremes(x,kwargs...)
 
-where **tres** is a threshold quantile to determine, which values are extreme (tres=0.95 means the highest 5% values are considered extreme). 
-You can also provide the grid cell area as a vector of length nlatitudes. The **circular** argument determines, if the array should be treated as 
-closed along the longitude dimension as it is the case when analyzing the whole globe. 
+The following keyword arguments are valid:
 
-Returned is a structure of type ExtremeList, containing a Vector of all connected Extremes sorted by their number of pixels. You should call the function
+* `quantile`: Quantile threshold to determine, which values are counted as extreme (tres=0.95 means the highest 5% values are considered extreme)
+* `mask`: An additional mask having the same size as `x`, where only `true` values are considered for labelling
+* `area`: A vector of the length `size(x,2)` giving the grid cell area depending on altitude. Defaults to equal area (one)
+* `lons`: longitude valuse of the grid (optional)
+* `lats`: lagtitude values of the grid (optional)
+* `circular`: should th array be treated as closed along the longitude dimension as it is the case when analyzing the whole globe. defaults to true 
 
-    getTbounds(el)
-
-to calculate 3D bounding boxes for each extreme prior to calculating features. After that you can use the getfeatures function to calculate some
+Returned is a structure of type `ExtremeList` containing a list with all the detected components.
+After that you can use the getfeatures function to calculate some
 statistics within each extreme
 
     getFeatures(el, features...)
@@ -42,11 +44,28 @@ where **el** is an ExtremeList followed by an optional number of features to be 
 This returns a Dataframe-like object with the requested features. 
 
 In addition you have the possibility to subtract a smoothed mean annual cycle from the dataset using
-    x2=get_anomalies(x,NpY,nlon,nlat)
-This returns a new 3D array with only anomalies. 
 
+    x2=get_anomalies(x,NpY)
+    
+This returns a new 3D array with only anomalies. There is also a mutating version of the function which does the anomaly-subtraction in-place.
+
+    get_anomalies!(x,NpY)
+
+Currently there is also a convenience function exported to load a BGI-like dataset. This is going to be replaced soon by using the MDIDS package. 
+
+    load_X(data_path,fileprefix,varname,years,lon_range,lat_range)
+
+This will read a datacube from NetCDF files in `data_path` with the given variable name for the given years, lons and lats. An example use would be:
+
+    load_X("/Net/Groups/BGI/people/mjung/FLUXCOM/_ENSEMBLES/8daily/TERall/","TERall_","TERall",2001:2012,[20,40],[40, 20]);
+
+If you want to combine a list of detected extremes into a big one, you can call
+
+    elCombined = combineExtremes(el)
+
+which returns a new ExtremeList having only a single Extreme. 
 ## Author(s)
 Fabian Gans (BGI department)
 
 ## Credits
-This package is heavily influenced by R code written by Sebastian Sippel. The anomaly detection algorithms are after function written by Miguel Mahecha. 
+This package is heavily influenced by R code written by Sebastian Sippel. The anomaly detection algorithms are after a function written by Miguel Mahecha. 
