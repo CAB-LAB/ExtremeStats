@@ -200,9 +200,8 @@ function ExtremeList{T}(x::Array{T,3},lx::Array{Int,3},area=ones(Float32,size(x,
   return(ExtremeList(extremeList,area,lons,lats))
 end
 
-function combineExtremes(elin::ExtremeList)
+function combineExtremes(elin::ExtremeList;nEx=length(elin.extremes))
     totlen=0
-    nEx=length(elin.extremes)
     for i=1:nEx
         totlen=totlen+length(elin.extremes[i].zvalues)
     end
