@@ -93,6 +93,7 @@ accumulators(::Type{Max_Area})=(AR_TS_acc,)
 final(::Type{Max_Area})= :(maximum(ar_ts_acc))
 rettype(::Type{Max_Area},e)=eltype(e.area)
 
+
 #Now the fun begins! quantile calculations!
 #We use preallocated arrays to be fast and choose one of the according size
 type Quantile end
