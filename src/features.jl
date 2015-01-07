@@ -88,7 +88,10 @@ final(::Type{TS_ZValue})= quote
   end
 end
 rettype(::Type{TS_ZValue},e)=Vector{eltype(e.extremes[1].zvalues)}
-
+type Max_Area end
+accumulators(::Type{Max_Area})=(AR_TS_acc,)
+final(::Type{Max_Area})= :(maximum(ar_ts_acc))
+rettype(::Type{TS_Area},e)=eltype(e.area)
 
 #Now the fun begins! quantile calculations!
 #We use preallocated arrays to be fast and choose one of the according size
