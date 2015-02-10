@@ -80,34 +80,37 @@ function smooth_circular!(xin::Vector,xout::Vector,wl::Integer=9)
 end
 
 function anomalies(series::Array,ilon,ilat,msc,stdmsc,smsc,sstdmsc,n,series_anomaly;NpY::Int=46,filt=9)
-  # length of time series
-  N    = size(series,3)
-  @assert mod(N,NpY) == 0
-  # divide length of time series by samples/year -> nr years
-  NY=ifloor(N/NpY)
-  # mean seasonal cycle
+    # length of time series
+    N    = size(series,3)
+    @assert mod(N,NpY) == 0
+    # divide length of time series by samples/year -> nr years
+    NY=ifloor(N/NpY)
+    # mean seasonal cycle
     getSeasStat(series,ilon,ilat,NY,NpY,msc,stdmsc,n)
-  # smooth MAC
-    smooth_circular!(msc, smsc, 9)
-    #smooth_circular!(stdmsc, sstdmsc, 9)
-  # deseasoanlized time series, difference of time series and mac
+    # smooth MAC
+    if filt > 1
+        smooth_circular!(msc, smsc, filt)
+    else
+        copy!(smsc,msc)
+    end
+    #deseasoanlized time series, difference of time series and mac
     for iyear=0:(NY-1),iday=1:NpY
         series_anomaly[ilon,ilat,iyear*NpY+iday]  = series[ilon,ilat,iyear*NpY+iday] - smsc[iday]
     end
 end
 
-function get_anomalies(x,NpY)
+function get_anomalies(x,NpY;filt=9)
     anomar = similar(x)
-    get_anomalies!(x,NpY,anomar)
+    get_anomalies!(x,NpY,anomar,filt=filt)
     return(anomar)
 end
 
-function get_anomalies!(x,NpY)
-    get_anomalies!(x,NpY,x)
+function get_anomalies!(x,NpY;filt=9)
+    get_anomalies!(x,NpY,x,filt=filt)
     return(x)
 end
 
-function get_anomalies!(x,NpY,anomar)
+function get_anomalies!(x,NpY,anomar;filt=9)
     nlon=size(x,1)
     nlat=size(x,2)
     msc     = Array(Float64,NpY) #Allocate once
@@ -116,7 +119,7 @@ function get_anomalies!(x,NpY,anomar)
     sstdmsc = Array(Float64,NpY) #Allocate once
     n       = Array(Int64,NpY)
     for lon in 1:nlon, lat in 1:nlat
-        anomalies(x,lon,lat,msc,stdmsc,smsc,sstdmsc,n,anomar,NpY=NpY)
+        anomalies(x,lon,lat,msc,stdmsc,smsc,sstdmsc,n,anomar,NpY=NpY,filt=filt)
         #println("$lon $lat")
     end
     return(anomar)
