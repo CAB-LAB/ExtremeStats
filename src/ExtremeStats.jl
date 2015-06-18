@@ -94,38 +94,53 @@ function getSeasStat(series,ilon,ilat,NY,NpY,msc,stdmsc,n)
 end
 
 
-function nanquantile(xtest,q;useabs=false)
+function nanquantile(xtest,q;useabs=false) 
+    x = similar(xtest)
+    nanquantile!(xtest,q,x,useabs=useabs)
+end
+
+function nanquantile!(xtest,q,x;useabs=false) 
+    useabs ? for i=1:length(xtest) x[i]=abs(xtest[i]) end : copy!(x,xtest)
     nNaN  = 0; for i=1:length(xtest) nNaN = isnan(xtest[i]) ? nNaN+1 : nNaN end
     lv=length(xtest)-nNaN
     index = 1 + (lv-1)*q
     lo = ifloor(index)
     hi = iceil(index)
-    if useabs 
-        vals=select!(abs(xtest[:]),lo:hi)
-    else
-        vals=select!(copy(xtest[:]),lo:hi)
-    end
+    vals=select!(x,lo:hi)
     h=index - lo
     r = (1.0-h)*vals[1] + h*vals[2]
 end
 
 
-function label_Extremes{T}(x::Array{T,3};quantile::Number=0.0,mask::BitArray{3}=trues(1,1,1),circular::Bool=false,pattern::BitArray=trues(3,3,3),area=ones(Float32,size(x,2)),lons=linspace(0,360,size(x,1)),lats=linspace(90,-90,size(x,2)))
+function label_Extremes{T}(x::Array{T,3};quantile::Number=0.0,mask::BitArray{3}=trues(1,1,1),circular::Bool=false,pattern::BitArray=trues(3,3,3),area=ones(Float32,size(x,2)),lons=linspace(0,360,size(x,1)),lats=linspace(90,-90,size(x,2)),normscope="global")
     
     size(x)==size(mask) || size(mask)==(1,1,1) || error("Sizes of x and mask must be the same")
-    nlon=size(x,1)
+    nlon,nlat,ntime = size(x)
     offs = circular ? 1 : 0
     
     if quantile==one(quantile) || quantile==zero(quantile)
         x2=trues(size(x,1)+offs,size(x,2),size(x,3))
     else
-        #First calculate threshold
         cmpfun = (quantile < 0.5) ? .< : .>
-        tres = nanquantile(x,quantile)
         #Then allocate bitArray that hold the true/falses
         x2=BitArray(size(x,1)+offs,size(x,2),size(x,3))
-        #Fill BitArray
-        x2[1:nlon,:,:]=cmpfun(x,tres)
+        if normscope=="global"
+          #First calculate threshold
+          tres = nanquantile(x,quantile)
+          #Fill BitArray
+          x2[1:nlon,:,:]=cmpfun(x,tres)
+        elseif normscope=="local"
+          qar1      = zeros(eltype(x),ntime)
+          qar2      = zeros(eltype(x),ntime)
+          for ilat=1:nlat, ilon=1:nlon
+            for itime = 1:ntime
+              qar1[itime] = x[ilon,ilat,itime]
+            end
+            tres=nanquantile!(qar1,quantile,qar2)
+            x2[ilon,ilat,:]=cmpfun(qar1,tres)
+            
+          end
+        end
     end
     
     if size(mask) != (1,1,1)
@@ -136,6 +151,7 @@ function label_Extremes{T}(x::Array{T,3};quantile::Number=0.0,mask::BitArray{3}=
         aftersum=sum(x2)
         println("$(presum-aftersum) of $(presum) elements were removed by additional condition ()$((presum-aftersum)/presum)%)")
     end
+
     if circular
       #Now attach first slice to the end (circular globe)
       x2[nlon+1,:,:]=x2[1,:,:];
