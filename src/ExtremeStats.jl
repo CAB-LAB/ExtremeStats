@@ -103,11 +103,13 @@ function nanquantile!(xtest,q,x;useabs=false)
     useabs ? for i=1:length(xtest) x[i]=abs(xtest[i]) end : copy!(x,xtest)
     nNaN  = 0; for i=1:length(xtest) nNaN = isnan(xtest[i]) ? nNaN+1 : nNaN end
     lv=length(xtest)-nNaN
+    lv==0 && return(nan(eltype(x)))
     index = 1 + (lv-1)*q
     lo = ifloor(index)
     hi = iceil(index)
     vals=select!(x,lo:hi)
     h=index - lo
+    length(vals)==1 && return(vals[1])
     r = (1.0-h)*vals[1] + h*vals[2]
 end
 
