@@ -16,6 +16,7 @@ The following keyword arguments are valid:
 * `lons`: longitude valuse of the grid (optional)
 * `lats`: lagtitude values of the grid (optional)
 * `circular`: should th array be treated as closed along the longitude dimension as it is the case when analyzing the whole globe. defaults to true 
+* `normscope`: should be `"local"` or `"global"` and denotes if quantiles should be taken locally or globally
 
 Returned is a structure of type `ExtremeList` containing a list with all the detected components.
 After that you can use the getfeatures function to calculate some

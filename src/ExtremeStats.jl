@@ -33,13 +33,14 @@ function sortby!(el::ExtremeList,x::Vector;rev=false)
     el.extremes[:]=el.extremes[o]
 end
 
-function load_X(data_path,fileprefix,varname,years,lon_range,lat_range)
+function load_X(data_path,fileprefix,filepost,varname,years,lon_range,lat_range)
 
   N_years   = length(years)
   y=years[1]
-  lons=ncread(joinpath(data_path,"$(fileprefix)$(years[1]).nc"),"lon")
-  lats=ncread(joinpath(data_path,"$(fileprefix)$(years[1]).nc"),"lat")
-  time=ncread(joinpath(data_path,"$(fileprefix)$(years[1]).nc"),"time")
+  lons=ncread(joinpath(data_path,"$(fileprefix)$(years[1])$(filepost)"),"lon")
+  lats=ncread(joinpath(data_path,"$(fileprefix)$(years[1])$(filepost)"),"lat")
+  lats=ncread(joinpath(data_path,"$(fileprefix)$(years[1])$(filepost)"),"lat")
+  time=ncread(joinpath(data_path,"$(fileprefix)$(years[1])$(filepost)"),"time")
   println("lons: $(lons[1]) to $(lons[end])")
   println("lats: $(lats[1]) to $(lats[end])")
   NpY=length(time)
@@ -57,9 +58,9 @@ function load_X(data_path,fileprefix,varname,years,lon_range,lat_range)
   lats=lats[ilat_range[1]:ilat_range[2]];
   x=Array(Float32,nlon,nlat,N_years*NpY)
   iyear=1
-  for iyear in 1:N_years
+  for iyear in years
       println("$iyear")
-      x[:,:,((iyear-1)*NpY+1):iyear*NpY]=ncread(joinpath(data_path,"$(fileprefix)$(years[iyear]).nc"),varname,[ilon_range[1],ilat_range[1],1],[nlon,nlat,-1]);
+      x[:,:,((iyear-1)*NpY+1):iyear*NpY]=ncread(joinpath(data_path,"$(fileprefix)$(years[iyear])$(filepost)"),varname,[ilon_range[1],ilat_range[1],1],[nlon,nlat,-1]);
   end
   return(x,lons,lats,ilon_range[1],ilat_range[1],nlon,nlat,NpY,N_years)
 end
