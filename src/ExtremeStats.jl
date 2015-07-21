@@ -39,7 +39,6 @@ function load_X(data_path,fileprefix,filepost,varname,years,lon_range,lat_range)
   y=years[1]
   lons=ncread(joinpath(data_path,"$(fileprefix)$(years[1])$(filepost)"),"lon")
   lats=ncread(joinpath(data_path,"$(fileprefix)$(years[1])$(filepost)"),"lat")
-  lats=ncread(joinpath(data_path,"$(fileprefix)$(years[1])$(filepost)"),"lat")
   time=ncread(joinpath(data_path,"$(fileprefix)$(years[1])$(filepost)"),"time")
   println("lons: $(lons[1]) to $(lons[end])")
   println("lats: $(lats[1]) to $(lats[end])")
@@ -96,7 +95,7 @@ end
 
 
 function nanquantile(xtest,q;useabs=false) 
-    x = similar(xtest)
+    x = Array(eltype(xtest),length(xtest))
     nanquantile!(xtest,q,x,useabs=useabs)
 end
 
@@ -104,11 +103,13 @@ function nanquantile!(xtest,q,x;useabs=false)
     useabs ? for i=1:length(xtest) x[i]=abs(xtest[i]) end : copy!(x,xtest)
     nNaN  = 0; for i=1:length(xtest) nNaN = isnan(xtest[i]) ? nNaN+1 : nNaN end
     lv=length(xtest)-nNaN
+    lv==0 && return(nan(eltype(x)))
     index = 1 + (lv-1)*q
     lo = ifloor(index)
     hi = iceil(index)
     vals=select!(x,lo:hi)
     h=index - lo
+    length(vals)==1 && return(vals[1])
     r = (1.0-h)*vals[1] + h*vals[2]
 end
 
