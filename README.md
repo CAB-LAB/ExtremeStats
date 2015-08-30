@@ -1,7 +1,6 @@
 # ExtremeStats
 
-[![Build Status](https://travis-ci.org/meggart/ExtremeStats.jl.svg?branch=master)](https://travis-ci.org/meggart/ExtremeStats.jl)
-This package is a collection of Extreme detection ans analysis algorithms implemented efficiently in the julia programming language.
+This package is a collection of Extreme detection and analysis algorithms implemented efficiently in the julia programming language.
 Basic usage is as follows: 
 
 Given a spatiotemporal data array **x** with dimensions in the order (lon,lat,time) you can call
@@ -52,13 +51,6 @@ This returns a new 3D array with only anomalies. There is also a mutating versio
 
     get_anomalies!(x,NpY)
 
-Currently there is also a convenience function exported to load a BGI-like dataset. This is going to be replaced soon by using the MDIDS package. 
-
-    load_X(data_path,fileprefix,varname,years,lon_range,lat_range)
-
-This will read a datacube from NetCDF files in `data_path` with the given variable name for the given years, lons and lats. An example use would be:
-
-    load_X("/Net/Groups/BGI/people/mjung/FLUXCOM/_ENSEMBLES/8daily/TERall/","TERall_","TERall",2001:2012,[20,40],[40, 20]);
 
 If you want to write the output of the analysis to NetCDF files, there are the following functions:
 
@@ -74,7 +66,7 @@ If you want to combine a list of detected extremes into a big one, you can call
 
 which returns a new ExtremeList having only a single Extreme. 
 ## Author(s)
-Fabian Gans (BGI department)
+Fabian Gans (BGI department, Max-Planck-Institue for Biogeochemistry, Jena)
 
 ## Credits
-This package is heavily influenced by R code written by Sebastian Sippel. The anomaly detection algorithms are after a function written by Miguel Mahecha. 
+This package is heavily influenced by R code written by Sebastian Sippel. The anomaly subtraction algorithms are after a function written by Miguel Mahecha. 
