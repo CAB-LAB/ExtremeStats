@@ -33,36 +33,6 @@ function sortby!(el::ExtremeList,x::Vector;rev=false)
     el.extremes[:]=el.extremes[o]
 end
 
-function load_X(data_path,fileprefix,filepost,varname,years,lon_range,lat_range)
-
-  N_years   = length(years)
-  y=years[1]
-  lons=ncread(joinpath(data_path,"$(fileprefix)$(years[1])$(filepost)"),"lon")
-  lats=ncread(joinpath(data_path,"$(fileprefix)$(years[1])$(filepost)"),"lat")
-  time=ncread(joinpath(data_path,"$(fileprefix)$(years[1])$(filepost)"),"time")
-  println("lons: $(lons[1]) to $(lons[end])")
-  println("lats: $(lats[1]) to $(lats[end])")
-  NpY=length(time)
-  lonstep=lons[2]-lons[1]
-  latstep=lats[2]-lats[1]
-  cmplon=lonstep>0 ? .> : .<
-  cmplat=latstep>0 ? .> : .<
-  ilon_range=sort!([findfirst(cmplon(lons,lon_range[1])),findfirst(cmplon(lons,lon_range[2]-lonstep))])
-  ilat_range=sort!([findfirst(cmplat(lats,lat_range[1])),findfirst(cmplat(lats,lat_range[2]-latstep))])
-  println("ilons: $(ilon_range[1]) to $(ilon_range[end])")
-  println("ilats: $(ilat_range[1]) to $(ilat_range[end])")
-  nlon=ilon_range[2]-ilon_range[1]+1
-  nlat=ilat_range[2]-ilat_range[1]+1
-  lons=lons[ilon_range[1]:ilon_range[2]];
-  lats=lats[ilat_range[1]:ilat_range[2]];
-  x=Array(Float32,nlon,nlat,N_years*NpY)
-  iyear=1
-  for iyear in years
-      println("$iyear")
-      x[:,:,((iyear-1)*NpY+1):iyear*NpY]=ncread(joinpath(data_path,"$(fileprefix)$(years[iyear])$(filepost)"),varname,[ilon_range[1],ilat_range[1],1],[nlon,nlat,-1]);
-  end
-  return(x,lons,lats,ilon_range[1],ilat_range[1],nlon,nlat,NpY,N_years)
-end
 
 random_x(nlon=200,nlat=200,N_years=7)=rand(Float32,nlon,nlat,N_years*46);
 
